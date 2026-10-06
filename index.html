@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KBO cRV & cRC+ 경기 분석 대시보드</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --highlight: #38bdf8;
+            --text-color: #f8fafc;
+            --text-sub: #94a3b8;
+            --border-color: #334155;
+            --danger: #f43f5e;
+            --success: #10b981;
+            --accent: #f59e0b;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container { width: 100%; max-width: 980px; }
+
+        header {
+            text-align: center;
+            margin-bottom: 24px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 16px;
+        }
+
+        h1 { margin: 0; color: var(--highlight); font-size: 1.9rem; }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 18px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+        }
+
+        .card-title {
+            margin-top: 0;
+            margin-bottom: 14px;
+            color: var(--highlight);
+            font-size: 1.1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .view-section { display: none; }
+        .view-section.active { display: block; }
+
+        /* 대시보드 요약 박스 */
+        .dash-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .stat-card {
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 14px;
+            text-align: center;
+        }
+
+        .stat-card .label { font-size: 0.8rem; color: var(--text-sub); margin-bottom: 6px; }
+        .stat-card .value { font-size: 1.5rem; font-weight: bold; color: var(--highlight); }
+        .stat-card .value.mvp { color: var(--accent); }
+
+        /* 탭 스타일링 */
+        .tab-bar {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            background: #0f172a;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .tab-btn {
+            background: #1e293b;
+            color: var(--text-sub);
+            border: 1px solid var(--border-color);
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.88rem;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background: var(--highlight);
+            color: #0f172a;
+            border-color: var(--highlight);
+        }
+
+        .extra-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: var(--accent);
+            margin-left: auto;
+            cursor: pointer;
+        }
+
+        .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        label { font-size: 0.8rem; color: var(--text-sub); font-weight: 600; }
+        input, select {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 9px 10px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            outline: none;
+        }
+        input:focus, select:focus { border-color: var(--highlight); }
+
+        button {
+            background-color: var(--highlight);
+            color: #0f172a;
+            font-weight: 700;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.9; }
+
+        .btn-primary { background-color: var(--highlight); color: #0f172a; }
+        .btn-success { background-color: var(--success); color: #fff; }
+        .btn-next { background-color: var(--accent); color: #000; width: 100%; margin-top: 10px; }
+        .btn-edit { background-color: #3b82f6; color: #fff; padding: 5px 10px; font-size: 0.8rem; width: auto; margin-right: 4px; }
+        .btn-del { background-color: var(--danger); color: #fff; padding: 5px 10px; font-size: 0.8rem; width: auto; }
+        .btn-secondary { background-color: transparent; border: 1px solid var(--border-color); color: var(--text-color); }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 9px; text-align: center; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; }
+        th { background-color: rgba(255, 255, 255, 0.05); color: var(--text-sub); }
+
+        .val-positive { color: var(--success); font-weight: bold; }
+        .val-negative { color: var(--danger); font-weight: bold; }
+
+        .summary-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1.1rem;
+            font-weight: bold;
+            padding-top: 12px;
+        }
+
+        .status-badge {
+            background-color: #334155;
+            color: var(--highlight);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .top-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>KBO cRV & cRC+ 분석 대시보드</h1>
+    </header>
+
+    <!-- ==================== 1. 메인 대시보드 화면 ==================== -->
+    <div id="dashboardView" class="view-section active">
+        <div class="top-nav">
+            <h2 style="margin:0; font-size: 1.3rem;">전체 경기 누적 통계</h2>
+            <button class="btn-success" onclick="createNewGame()">+ 새 경기 작성하기</button>
+        </div>
+
+        <!-- 전체 데이터 총합 요약 카드 -->
+        <div class="dash-stats-grid">
+            <div class="stat-card">
+                <div class="label">총 기록 경기 수</div>
+                <div class="value" id="dashTotalGames">0 경기</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">총 누적 타석 (PA)</div>
+                <div class="value" id="dashTotalPa">0 타석</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">전체 통산 cRC+</div>
+                <div class="value" id="dashTotalCrc">100.0</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">전체 통산 MVP</div>
+                <div class="value mvp" id="dashOverallMvp">-</div>
+            </div>
+        </div>
+
+        <!-- 누적 선수 통계 표 -->
+        <div class="card">
+            <div class="card-title">전체 경기 선수별 통산 성적</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>선수명</th>
+                        <th>총 타석(PA)</th>
+                        <th>누적 cRV</th>
+                        <th>평균 cRV/PA</th>
+                        <th>통산 cRC+</th>
+                    </tr>
+                </thead>
+                <tbody id="dashOverallPlayerBody"></tbody>
+            </table>
+        </div>
+
+        <!-- 저장된 경기 목록 -->
+        <div class="card">
+            <div class="card-title">기록된 경기 목록</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>경기 일자</th>
+                        <th>상대팀 / 구장</th>
+                        <th>상대 투수</th>
+                        <th>총 타석</th>
+                        <th>팀 cRC+</th>
+                        <th>경기 MVP</th>
+                        <th>관리</th>
+                    </tr>
+                </thead>
+                <tbody id="dashGameListBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ==================== 2. 개별 경기 작성 / 수정 화면 ==================== -->
+    <div id="gameEditorView" class="view-section">
+        <div class="top-nav">
+            <button class="btn-secondary" onclick="showDashboard()">&larr; 메인 대시보드로 돌아가기</button>
+            <button class="btn-success" onclick="saveGameAndExit()">경기 저장 및 메인 이동</button>
+        </div>
+
+        <!-- 경기 기본 정보 -->
+        <div class="card">
+            <div class="card-title">1. 경기 및 상대 투수 정보</div>
+            <div class="grid-4">
+                <div class="form-group">
+                    <label for="gameDate">경기 일자</label>
+                    <input type="date" id="gameDate">
+                </div>
+                <div class="form-group">
+                    <label for="gameOpponent">상대팀 / 구장</label>
+                    <input type="text" id="gameOpponent" placeholder="예: 잠실 두산전">
+                </div>
+                <div class="form-group">
+                    <label for="pitcherName">상대 투수명</label>
+                    <input type="text" id="pitcherName" placeholder="예: 박세웅">
+                </div>
+                <div class="form-group">
+                    <label for="pitcherFip">투수 FIP- 수치</label>
+                    <input type="number" id="pitcherFip" value="100.0" step="0.1" onchange="renderAll()">
+                </div>
+            </div>
+        </div>
+
+        <!-- 이닝 탭 및 타석 입력 -->
+        <div class="card">
+            <div class="card-title">
+                <span>2. 이닝별 타석 입력 (<span id="activeInningTitle" style="color:var(--accent);">1회</span>)</span>
+                <span class="status-badge" id="currentInningStatus">현재: 0아웃 (주자 없음)</span>
+            </div>
+
+            <div class="tab-bar">
+                <div id="tabButtons" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+                <label class="extra-toggle">
+                    <input type="checkbox" id="toggleExtra" onchange="toggleExtraInnings()"> 10~11회(연장) 활성화
+                </label>
+            </div>
+            
+            <div class="grid-4">
+                <div class="form-group">
+                    <label for="playerName">선수명 (타자)</label>
+                    <input type="text" id="playerName" placeholder="예: 정수빈" autofocus>
+                </div>
+                <div class="form-group">
+                    <label for="startOuts">시작 아웃</label>
+                    <select id="startOuts" onchange="updateInningStatus()">
+                        <option value="0">0 아웃</option>
+                        <option value="1">1 아웃</option>
+                        <option value="2">2 아웃</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="startRunners">시작 주자</label>
+                    <select id="startRunners" onchange="updateInningStatus()">
+                        <option value="empty">주자 없음</option>
+                        <option value="1b">1루</option>
+                        <option value="2b">2루</option>
+                        <option value="3b">3루</option>
+                        <option value="12b">1, 2루</option>
+                        <option value="13b">1, 3루</option>
+                        <option value="23b">2, 3루</option>
+                        <option value="123b">만루</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="playResult">타석 결과</label>
+                    <select id="playResult" onchange="autoFillNextState()">
+                        <option value="flyout">플라이 / 뜬공 아웃</option>
+                        <option value="groundout">땅볼 아웃</option>
+                        <option value="strikeout">삼진</option>
+                        <option value="walk">볼넷 / 사구</option>
+                        <option value="single">1루타</option>
+                        <option value="double">2루타</option>
+                        <option value="triple">3루타</option>
+                        <option value="hr">홈런</option>
+                        <option value="dp">병살타 (2아웃 증가)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid-4" style="margin-top: 10px;">
+                <div class="form-group">
+                    <label for="endOuts">종료 아웃</label>
+                    <select id="endOuts" onchange="handleEndOutsChange()">
+                        <option value="0">0 아웃</option>
+                        <option value="1">1 아웃</option>
+                        <option value="2">2 아웃</option>
+                        <option value="3">3 아웃 (이닝 종료)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="endRunners">종료 주자</label>
+                    <select id="endRunners">
+                        <option value="empty">주자 없음</option>
+                        <option value="1b">1루</option>
+                        <option value="2b">2루</option>
+                        <option value="3b">3루</option>
+                        <option value="12b">1, 2루</option>
+                        <option value="13b">1, 3루</option>
+                        <option value="23b">2, 3루</option>
+                        <option value="123b">만루</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="runsScored">타석 발생 득점</label>
+                    <input type="number" id="runsScored" value="0" min="0" max="4">
+                </div>
+                <div class="form-group" style="justify-content: flex-end;">
+                    <button class="btn-next" id="submitBtn" onclick="savePlateAppearance()">타석 저장 / 다음 전환 &rarr;</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 이닝 상세 기록 표 -->
+        <div class="card">
+            <div class="card-title">
+                <span>3. <span id="selectedInningLabel">1회</span> 상세 기록</span>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>선수명</th>
+                        <th>시작 상황</th>
+                        <th>결과</th>
+                        <th>&Delta;RE</th>
+                        <th>LI</th>
+                        <th>cRV_i</th>
+                        <th>작업</th>
+                    </tr>
+                </thead>
+                <tbody id="inningTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- 해당 경기 선수별 cRC+ 최종 산출 표 -->
+        <div class="card">
+            <div class="card-title">
+                <span>4. 이번 경기 선수별 cRC+ 산출 결과</span>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>선수명</th>
+                        <th>타석 수(PA)</th>
+                        <th>누적 cRV</th>
+                        <th>평균 cRV/PA</th>
+                        <th>최종 cRC+</th>
+                    </tr>
+                </thead>
+                <tbody id="playerSummaryBody"></tbody>
+            </table>
+            <div class="summary-box">
+                <span>이번 경기 팀 cRC+:</span>
+                <span id="teamCrcPlus">100.0</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const RE_TABLE = {
+        0: { empty: 0.481, '1b': 0.859, '2b': 1.100, '3b': 1.350, '12b': 1.431, '13b': 1.788, '23b': 1.964, '123b': 2.292 },
+        1: { empty: 0.254, '1b': 0.509, '2b': 0.664, '3b': 0.950, '12b': 0.884, '13b': 1.130, '23b': 1.376, '123b': 1.520 },
+        2: { empty: 0.098, '1b': 0.224, '2b': 0.319, '3b': 0.353, '12b': 0.429, '13b': 0.478, '23b': 0.580, '123b': 0.752 },
+        3: { empty: 0, '1b': 0, '2b': 0, '3b': 0, '12b': 0, '13b': 0, '23b': 0, '123b': 0 }
+    };
+
+    const LI_TABLE = {
+        0: { empty: 0.85, '1b': 0.95, '2b': 1.10, '3b': 1.20, '12b': 1.35, '13b': 1.50, '23b': 1.60, '123b': 1.85 },
+        1: { empty: 0.75, '1b': 0.85, '2b': 1.05, '3b': 1.15, '12b': 1.25, '13b': 1.40, '23b': 1.55, '123b': 1.75 },
+        2: { empty: 0.55, '1b': 0.70, '2b': 0.85, '3b': 0.95, '12b': 1.10, '13b': 1.25, '23b': 1.40, '123b': 1.65 }
+    };
+
+    const runnerTextMap = { empty:'주자없음', '1b':'1루', '2b':'2루', '3b':'3루', '12b':'1,2루', '13b':'1,3루', '23b':'2,3루', '123b':'만루' };
+    const LEAGUE_R_PER_PA = 0.120;
+
+    let games = []; // 저장된 경기 전체 데이터
+    let currentGame = null; // 현재 편집 중인 경기
+    let currentInning = 1;
+    let editingId = null;
+
+    // 로컬 스토리지 초기화
+    function init() {
+        const saved = localStorage.getItem('kbo_crc_games_data');
+        if (saved) {
+            try { games = JSON.parse(saved); } catch (e) { games = []; }
+        }
+        showDashboard();
+    }
+
+    function saveToStorage() {
+        localStorage.setItem('kbo_crc_games_data', JSON.stringify(games));
+    }
+
+    // 뷰 전환
+    function showDashboard() {
+        document.getElementById('dashboardView').classList.add('active');
+        document.getElementById('gameEditorView').classList.remove('active');
+        renderDashboard();
+    }
+
+    function createNewGame() {
+        const today = new Date().toISOString().split('T')[0];
+        currentGame = {
+            id: 'game_' + Date.now(),
+            date: today,
+            opponent: '',
+            pitcherName: '',
+            pitcherFip: 100.0,
+            plays: []
+        };
+        openGameEditor();
+    }
+
+    function editGame(gameId) {
+        const target = games.find(g => g.id === gameId);
+        if (target) {
+            currentGame = JSON.parse(JSON.stringify(target)); // 복사본 생성
+            openGameEditor();
+        }
+    }
+
+    function deleteGame(gameId) {
+        if (confirm('이 경기를 삭제하시겠습니까?')) {
+            games = games.filter(g => g.id !== gameId);
+            saveToStorage();
+            renderDashboard();
+        }
+    }
+
+    function openGameEditor() {
+        document.getElementById('dashboardView').classList.remove('active');
+        document.getElementById('gameEditorView').classList.add('active');
+
+        document.getElementById('gameDate').value = currentGame.date || '';
+        document.getElementById('gameOpponent').value = currentGame.opponent || '';
+        document.getElementById('pitcherName').value = currentGame.pitcherName || '';
+        document.getElementById('pitcherFip').value = currentGame.pitcherFip || 100.0;
+
+        currentInning = 1;
+        editingId = null;
+        renderTabs();
+        resetForm();
+        renderAll();
+    }
+
+    function saveGameAndExit() {
+        currentGame.date = document.getElementById('gameDate').value;
+        currentGame.opponent = document.getElementById('gameOpponent').value.trim();
+        currentGame.pitcherName = document.getElementById('pitcherName').value.trim();
+        currentGame.pitcherFip = parseFloat(document.getElementById('pitcherFip').value) || 100.0;
+
+        const idx = games.findIndex(g => g.id === currentGame.id);
+        if (idx !== -1) {
+            games[idx] = currentGame;
+        } else {
+            games.push(currentGame);
+        }
+
+        saveToStorage();
+        showDashboard();
+    }
+
+    // 대시보드 렌더링
+    function renderDashboard() {
+        document.getElementById('dashTotalGames').textContent = `${games.length} 경기`;
+
+        let totalPa = 0;
+        let totalCrv = 0;
+        const playerStats = {};
+
+        games.forEach(g => {
+            (g.plays || []).forEach(p => {
+                totalPa += 1;
+                totalCrv += p.crv;
+
+                if (!playerStats[p.name]) {
+                    playerStats[p.name] = { pa: 0, crv: 0 };
+                }
+                playerStats[p.name].pa += 1;
+                playerStats[p.name].crv += p.crv;
+            });
+        });
+
+        document.getElementById('dashTotalPa').textContent = `${totalPa} 타석`;
+
+        // 통산 cRC+
+        let overallCrc = 100.0;
+        if (totalPa > 0) {
+            overallCrc = 100 + ((totalCrv / totalPa) / LEAGUE_R_PER_PA) * 100;
+        }
+        document.getElementById('dashTotalCrc').textContent = overallCrc.toFixed(1);
+
+        // 통산 MVP 찾기
+        let topPlayerName = '-';
+        let maxCrv = -999;
+        Object.keys(playerStats).forEach(name => {
+            if (playerStats[name].crv > maxCrv) {
+                maxCrv = playerStats[name].crv;
+                topPlayerName = name;
+            }
+        });
+
+        document.getElementById('dashOverallMvp').textContent = topPlayerName !== '-' ? `👑 ${topPlayerName}` : '-';
+
+        // 통산 선수 테이블
+        const playerBody = document.getElementById('dashOverallPlayerBody');
+        playerBody.innerHTML = '';
+        Object.keys(playerStats).forEach(name => {
+            const p = playerStats[name];
+            const avgCrv = p.crv / p.pa;
+            const crc = 100 + (avgCrv / LEAGUE_R_PER_PA) * 100;
+            const isMvp = name === topPlayerName;
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><b>${isMvp ? '👑 ' : ''}${name}</b></td>
+                <td>${p.pa}타석</td>
+                <td class="${p.crv >= 0 ? 'val-positive' : 'val-negative'}">${p.crv > 0 ? '+' : ''}${p.crv.toFixed(3)}</td>
+                <td>${avgCrv > 0 ? '+' : ''}${avgCrv.toFixed(3)}</td>
+                <td class="${crc >= 100 ? 'val-positive' : 'val-negative'}"><b>${crc.toFixed(1)}</b></td>
+            `;
+            playerBody.appendChild(row);
+        });
+
+        // 경기 목록 테이블
+        const gameListBody = document.getElementById('dashGameListBody');
+        gameListBody.innerHTML = '';
+        games.forEach(g => {
+            let gPa = (g.plays || []).length;
+            let gCrv = (g.plays || []).reduce((acc, curr) => acc + curr.crv, 0);
+            let gCrc = gPa > 0 ? (100 + ((gCrv / gPa) / LEAGUE_R_PER_PA) * 100) : 100.0;
+
+            // 경기 MVP 구하기
+            const pMap = {};
+            let gMvp = '-';
+            let gMaxCrv = -999;
+            (g.plays || []).forEach(p => {
+                pMap[p.name] = (pMap[p.name] || 0) + p.crv;
+                if (pMap[p.name] > gMaxCrv) {
+                    gMaxCrv = pMap[p.name];
+                    gMvp = p.name;
+                }
+            });
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${g.date || '-'}</td>
+                <td>${g.opponent || '기록 없음'}</td>
+                <td>${g.pitcherName || '-'}</td>
+                <td>${gPa}타석</td>
+                <td class="${gCrc >= 100 ? 'val-positive' : 'val-negative'}"><b>${gCrc.toFixed(1)}</b></td>
+                <td>${gMvp !== '-' ? '👑 ' + gMvp : '-'}</td>
+                <td>
+                    <button class="btn-edit" onclick="editGame('${g.id}')">수정</button>
+                    <button class="btn-del" onclick="deleteGame('${g.id}')">삭제</button>
+                </td>
+            `;
+            gameListBody.appendChild(row);
+        });
+    }
+
+    // 이닝 탭 버튼 생성
+    function renderTabs() {
+        const tabContainer = document.getElementById('tabButtons');
+        tabContainer.innerHTML = '';
+        const isExtra = document.getElementById('toggleExtra').checked;
+        const maxInning = isExtra ? 11 : 9;
+
+        for (let i = 1; i <= maxInning; i++) {
+            const btn = document.createElement('button');
+            btn.className = `tab-btn ${i === currentInning ? 'active' : ''}`;
+            btn.textContent = `${i}회`;
+            btn.onclick = () => switchInning(i);
+            tabContainer.appendChild(btn);
+        }
+    }
+
+    function toggleExtraInnings() {
+        renderTabs();
+        if (currentInning > 9 && !document.getElementById('toggleExtra').checked) {
+            switchInning(1);
+        }
+    }
+
+    function switchInning(inning) {
+        currentInning = inning;
+        document.getElementById('activeInningTitle').textContent = `${inning}회`;
+        document.getElementById('selectedInningLabel').textContent = `${inning}회`;
+        renderTabs();
+        resetForm();
+        renderAll();
+    }
+
+    // 종료 아웃 3아웃 변경 시 주자 자동 초기화
+    function handleEndOutsChange() {
+        const endOuts = document.getElementById('endOuts').value;
+        if (endOuts === '3') {
+            document.getElementById('endRunners').value = 'empty';
+        }
+    }
+
+    function autoFillNextState() {
+        const res = document.getElementById('playResult').value;
+        const curOuts = parseInt(document.getElementById('startOuts').value);
+        let calculatedEndOuts = curOuts;
+
+        if (res === 'flyout' || res === 'groundout' || res === 'strikeout') {
+            calculatedEndOuts = Math.min(curOuts + 1, 3);
+        } else if (res === 'dp') {
+            calculatedEndOuts = Math.min(curOuts + 2, 3);
+        }
+
+        document.getElementById('endOuts').value = calculatedEndOuts;
+
+        // ★ 3아웃(이닝 교대) 시 종료 주자 자동 초기화
+        if (calculatedEndOuts >= 3) {
+            document.getElementById('endRunners').value = 'empty';
+        }
+    }
+
+    function updateInningStatus() {
+        const outs = document.getElementById('startOuts').value;
+        const runners = document.getElementById('startRunners').value;
+        document.getElementById('currentInningStatus').textContent = 
+            `현재: ${outs}아웃 (${runnerTextMap[runners]})`;
+    }
+
+    function savePlateAppearance() {
+        const name = document.getElementById('playerName').value.trim() || '타자';
+        const startOuts = parseInt(document.getElementById('startOuts').value);
+        const startRunners = document.getElementById('startRunners').value;
+        const resultType = document.getElementById('playResult').value;
+        const endOuts = parseInt(document.getElementById('endOuts').value);
+        const endRunners = document.getElementById('endRunners').value;
+        const runs = parseInt(document.getElementById('runsScored').value) || 0;
+        const pitcherFip = parseFloat(document.getElementById('pitcherFip').value) || 100.0;
+
+        const reStart = RE_TABLE[startOuts][startRunners];
+        const reEnd = RE_TABLE[endOuts][endRunners];
+        const li = LI_TABLE[startOuts][startRunners];
+        const deltaRe = (reEnd - reStart) + runs;
+        const penalty = (resultType === 'groundout' || resultType === 'dp') ? -0.03 : 0.00;
+        const crv = (deltaRe + penalty) * li * (pitcherFip / 100.0);
+
+        if (editingId !== null) {
+            const idx = currentGame.plays.findIndex(p => p.id === editingId);
+            if (idx !== -1) {
+                currentGame.plays[idx] = { id: editingId, inning: currentInning, name, startOuts, startRunners, resultType, endOuts, endRunners, runs, deltaRe, li, crv };
+            }
+            editingId = null;
+            document.getElementById('submitBtn').textContent = '타석 저장 / 다음 전환 →';
+        } else {
+            const newId = Date.now();
+            currentGame.plays.push({ id: newId, inning: currentInning, name, startOuts, startRunners, resultType, endOuts, endRunners, runs, deltaRe, li, crv });
+        }
+
+        // 이닝 종료 및 다음 타석 자동 세팅
+        if (endOuts >= 3) {
+            document.getElementById('startOuts').value = 0;
+            document.getElementById('startRunners').value = 'empty';
+            document.getElementById('endRunners').value = 'empty';
+        } else {
+            document.getElementById('startOuts').value = endOuts;
+            document.getElementById('startRunners').value = endRunners;
+        }
+
+        document.getElementById('playerName').value = '';
+        document.getElementById('runsScored').value = '0';
+        autoFillNextState();
+        updateInningStatus();
+        renderAll();
+        document.getElementById('playerName').focus();
+    }
+
+    function editPlay(id) {
+        const item = currentGame.plays.find(p => p.id === id);
+        if (!item) return;
+
+        editingId = id;
+        document.getElementById('playerName').value = item.name;
+        document.getElementById('startOuts').value = item.startOuts;
+        document.getElementById('startRunners').value = item.startRunners;
+        document.getElementById('playResult').value = item.resultType;
+        document.getElementById('endOuts').value = item.endOuts;
+        document.getElementById('endRunners').value = item.endRunners;
+        document.getElementById('runsScored').value = item.runs;
+
+        document.getElementById('submitBtn').textContent = '수정 내용 저장';
+        updateInningStatus();
+    }
+
+    function deletePlay(id) {
+        currentGame.plays = currentGame.plays.filter(p => p.id !== id);
+        renderAll();
+    }
+
+    function resetForm() {
+        editingId = null;
+        document.getElementById('playerName').value = '';
+        document.getElementById('startOuts').value = 0;
+        document.getElementById('startRunners').value = 'empty';
+        document.getElementById('runsScored').value = '0';
+        document.getElementById('submitBtn').textContent = '타석 저장 / 다음 전환 →';
+        autoFillNextState();
+        updateInningStatus();
+    }
+
+    function renderAll() {
+        renderInningTable();
+        renderPlayerSummary();
+    }
+
+    function renderInningTable() {
+        const tbody = document.getElementById('inningTableBody');
+        tbody.innerHTML = '';
+
+        const inningPlays = (currentGame.plays || []).filter(p => p.inning === currentInning);
+
+        inningPlays.forEach((p, idx) => {
+            const row = document.createElement('tr');
+            const crvClass = p.crv >= 0 ? 'val-positive' : 'val-negative';
+            const resultText = document.getElementById('playResult').querySelector(`option[value="${p.resultType}"]`).textContent;
+
+            row.innerHTML = `
+                <td>${idx + 1}</td>
+                <td><b>${p.name}</b></td>
+                <td>${p.startOuts}아웃 (${runnerTextMap[p.startRunners]})</td>
+                <td>${resultText}</td>
+                <td>${p.deltaRe > 0 ? '+' + p.deltaRe.toFixed(3) : p.deltaRe.toFixed(3)}</td>
+                <td>${p.li.toFixed(2)}</td>
+                <td class="${crvClass}">${p.crv > 0 ? '+' : ''}${p.crv.toFixed(3)}</td>
+                <td>
+                    <button class="btn-edit" onclick="editPlay(${p.id})">수정</button>
+                    <button class="btn-del" onclick="deletePlay(${p.id})">삭제</button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    function renderPlayerSummary() {
+        const tbody = document.getElementById('playerSummaryBody');
+        tbody.innerHTML = '';
+
+        const playerMap = {};
+        let totalTeamCrv = 0;
+        let totalTeamPa = 0;
+
+        (currentGame.plays || []).forEach(p => {
+            if (!playerMap[p.name]) {
+                playerMap[p.name] = { pa: 0, crv: 0 };
+            }
+            playerMap[p.name].pa += 1;
+            playerMap[p.name].crv += p.crv;
+
+            totalTeamCrv += p.crv;
+            totalTeamPa += 1;
+        });
+
+        // 경기 베스트 플레이어(MVP) 찾기
+        let gameMvpName = '';
+        let maxGameCrv = -999;
+        Object.keys(playerMap).forEach(name => {
+            if (playerMap[name].crv > maxGameCrv) {
+                maxGameCrv = playerMap[name].crv;
+                gameMvpName = name;
+            }
+        });
+
+        Object.keys(playerMap).forEach(name => {
+            const p = playerMap[name];
+            const avgCrvPerPa = p.crv / p.pa;
+            const crcPlus = 100 + (avgCrvPerPa / LEAGUE_R_PER_PA) * 100;
+            const isMvp = name === gameMvpName;
+
+            const row = document.createElement('tr');
+            const crvClass = p.crv >= 0 ? 'val-positive' : 'val-negative';
+            const crcClass = crcPlus >= 100 ? 'val-positive' : 'val-negative';
+
+            row.innerHTML = `
+                <td><b>${isMvp ? '👑 ' : ''}${name}</b></td>
+                <td>${p.pa}타석</td>
+                <td class="${crvClass}">${p.crv > 0 ? '+' : ''}${p.crv.toFixed(3)}</td>
+                <td>${avgCrvPerPa > 0 ? '+' : ''}${avgCrvPerPa.toFixed(3)}</td>
+                <td class="${crcClass}"><b>${crcPlus.toFixed(1)}</b></td>
+            `;
+            tbody.appendChild(row);
+        });
+
+        const teamCrcPlusElem = document.getElementById('teamCrcPlus');
+        if (totalTeamPa > 0) {
+            const teamAvgCrv = totalTeamCrv / totalTeamPa;
+            const teamCrcPlus = 100 + (teamAvgCrv / LEAGUE_R_PER_PA) * 100;
+            teamCrcPlusElem.textContent = teamCrcPlus.toFixed(1);
+            teamCrcPlusElem.className = teamCrcPlus >= 100 ? 'val-positive' : 'val-negative';
+        } else {
+            teamCrcPlusElem.textContent = '100.0';
+            teamCrcPlusElem.className = '';
+        }
+    }
+
+    // 앱 시작
+    init();
+</script>
+
+</body>
+</html>
